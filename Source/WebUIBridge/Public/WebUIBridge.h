@@ -6,6 +6,7 @@
 #include "WebUIBridge.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWebUIBridgeEventSignature, const FString&, EventName, const FString&, PayloadJson);
+
 UCLASS(BlueprintType, Blueprintable)
 class WEBUIBRIDGE_API UWebUIBridge : public UObject
 {
@@ -25,7 +26,7 @@ public:
 	void UnbindBrowser();
 
 	UFUNCTION(BlueprintCallable, Category = "Web UI")
-	void InstallClickListener();
+	void InstallBridgeScript();
 
 	UFUNCTION(BlueprintPure, Category = "Web UI")
 	bool IsBrowserBound() const;
@@ -35,6 +36,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Web UI")
 	void SendEvent(const FString& EventName, const FString& PayloadJson);
+
+	UFUNCTION(BlueprintCallable, Category = "Web UI")
+	void SendEventToPage(const FString& EventName, const FString& PayloadJson);
+
+	UFUNCTION(BlueprintCallable, Category = "Web UI")
+	void ExecuteJavascript(const FString& Script);
 
 	virtual void BeginDestroy() override;
 
@@ -54,4 +61,5 @@ protected:
 private:
 	void ReleaseBrowserBindings();
 	void SetObjectName(const FString& InObjectName);
+	FString EscapeForSingleQuotedJavascriptString(const FString& InValue) const;
 };

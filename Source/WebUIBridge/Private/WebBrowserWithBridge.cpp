@@ -3,12 +3,40 @@
 UWebBrowserWithBridge::UWebBrowserWithBridge(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	OnUrlChanged.AddDynamic(this, &UWebBrowserWithBridge::HandleBrowserUrlChanged);
 }
 
-void UWebBrowserWithBridge::LoadURL(FString NewURL)
+void UWebBrowserWithBridge::SetupBridge()
 {
 	AutoSetupBridge();
-	Super::LoadURL(MoveTemp(NewURL));
+}
+
+void UWebBrowserWithBridge::ReinstallBridgeScript()
+{
+	if (Bridge)
+	{
+		Bridge->InstallBridgeScript();
+	}
+}
+
+void UWebBrowserWithBridge::SendEventToPage(const FString& EventName, const FString& PayloadJson)
+{
+	AutoSetupBridge();
+
+	if (Bridge)
+	{
+		Bridge->SendEventToPage(EventName, PayloadJson);
+	}
+}
+
+void UWebBrowserWithBridge::ExecuteBridgeJavascript(const FString& Script)
+{
+	AutoSetupBridge();
+
+	if (Bridge)
+	{
+		Bridge->ExecuteJavascript(Script);
+	}
 }
 
 UWebUIBridge* UWebBrowserWithBridge::GetBridge() const
@@ -27,10 +55,26 @@ FString UWebBrowserWithBridge::GetJavascriptObjectPath() const
 	return FString::Printf(TEXT("window.%s"), *EffectiveObjectName);
 }
 
+void UWebBrowserWithBridge::LoadURLWithBridge(const FString& NewURL)
+{
+	AutoSetupBridge();
+	Super::LoadURL(NewURL);
+}
+
+void UWebBrowserWithBridge::LoadHTMLWithBridge(const FString& Contents, const FString& DummyURL)
+{
+	AutoSetupBridge();
+	LoadString(Contents, DummyURL);
+}
+
 void UWebBrowserWithBridge::SynchronizeProperties()
 {
 	Super::SynchronizeProperties();
-	AutoSetupBridge();
+
+	if (bAutoSetupBridge)
+	{
+		AutoSetupBridge();
+	}
 }
 
 void UWebBrowserWithBridge::ReleaseSlateResources(bool bReleaseChildren)
@@ -46,6 +90,11 @@ void UWebBrowserWithBridge::ReleaseSlateResources(bool bReleaseChildren)
 void UWebBrowserWithBridge::HandleBridgeEvent(const FString& EventName, const FString& PayloadJson)
 {
 	OnBrowserEvent.Broadcast(EventName, PayloadJson);
+}
+
+void UWebBrowserWithBridge::HandleBrowserUrlChanged(const FText& Text)
+{
+	OnPageUrlChanged.Broadcast(Text.ToString());
 }
 
 void UWebBrowserWithBridge::AutoSetupBridge()

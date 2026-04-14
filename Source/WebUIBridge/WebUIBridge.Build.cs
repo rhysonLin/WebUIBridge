@@ -12,6 +12,8 @@ public class WebUIBridge : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"UMG",
+			"Slate",
+			"SlateCore",
 			"WebBrowserWidget"
 		});
 
