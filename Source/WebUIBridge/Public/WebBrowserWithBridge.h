@@ -51,6 +51,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Browser")
 	void LoadHTMLWithBridge(const FString& Contents, const FString& DummyURL = TEXT("http://localhost/"));
 
+	UFUNCTION(BlueprintCallable, Category = "Web UI|Browser")
+	void SetBrowserSupportsTransparency(bool bEnable);
+
+	UFUNCTION(BlueprintPure, Category = "Web UI|Browser")
+	bool GetBrowserSupportsTransparency() const;
+	
 	virtual void SynchronizeProperties() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 

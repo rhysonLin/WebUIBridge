@@ -1,10 +1,20 @@
 ﻿#include "WebUIHostWidget.h"
 
-#include "Components/Button.h"
-#include "Components/MultiLineEditableTextBox.h"
-#include "Components/TextBlock.h"
-#include "Components/Widget.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "WebUIBrowserWidget.h"
+
+UWebUIHostWidget::UWebUIHostWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}
+
+TSharedRef<SWidget> UWebUIHostWidget::RebuildWidget()
+{
+	BuildUI();
+	return Super::RebuildWidget();
+}
 
 void UWebUIHostWidget::NativeConstruct()
 {
@@ -18,6 +28,38 @@ void UWebUIHostWidget::NativeDestruct()
 	Super::NativeDestruct();
 }
 
+void UWebUIHostWidget::BuildUI()
+{
+	if (!WidgetTree)
+	{
+		return;
+	}
+
+	if (RootCanvas)
+	{
+		return;
+	}
+
+	RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("RootCanvas"));
+	WidgetTree->RootWidget = RootCanvas;
+
+	MainBrowser = WidgetTree->ConstructWidget<UWebUIBrowserWidget>(UWebUIBrowserWidget::StaticClass(), TEXT("MainBrowser"));
+	MainBrowser->BridgeObjectName = BrowserBridgeObjectName;
+	MainBrowser->bAutoSetupBridge = true;
+	MainBrowser->bLoadStartupURLOnSynchronize = false;
+	MainBrowser->bPreferStartupHTML = false;
+	MainBrowser->bSendUEReadyAfterSetup = bBrowserSendUEReadyAfterSetup;
+	MainBrowser->StartupURL = StartupURL;
+	MainBrowser->SetBrowserSupportsTransparency(true);
+	UCanvasPanelSlot* BrowserCanvasSlot = RootCanvas->AddChildToCanvas(MainBrowser);
+	if (BrowserCanvasSlot)
+	{
+		BrowserCanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		BrowserCanvasSlot->SetOffsets(FMargin(0.f, 0.f, 0.f, 0.f));
+		BrowserCanvasSlot->SetZOrder(0);
+	}
+}
+
 void UWebUIHostWidget::InitializeHostWidget()
 {
 	if (bInitialized)
@@ -27,155 +69,16 @@ void UWebUIHostWidget::InitializeHostWidget()
 
 	if (!MainBrowser)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUIHostWidget] MainBrowser is null. Please bind a UWebUIBrowserWidget named 'MainBrowser'."));
-		AddLog(TEXT("Error"), TEXT("MainBrowser is null."));
-		UpdateStatusText();
+		UE_LOG(LogTemp, Warning, TEXT("[WebUIHostWidget] MainBrowser is null."));
 		return;
 	}
 
 	BindBrowserEvents();
-
-	if (ReloadButton)
-	{
-		ReloadButton->OnClicked.RemoveDynamic(this, &UWebUIHostWidget::HandleReloadClicked);
-		ReloadButton->OnClicked.AddDynamic(this, &UWebUIHostWidget::HandleReloadClicked);
-	}
-
-	if (ClearLogsButton)
-	{
-		ClearLogsButton->OnClicked.RemoveDynamic(this, &UWebUIHostWidget::HandleClearLogsClicked);
-		ClearLogsButton->OnClicked.AddDynamic(this, &UWebUIHostWidget::HandleClearLogsClicked);
-	}
-
-	if (ToggleDebugButton)
-	{
-		ToggleDebugButton->OnClicked.RemoveDynamic(this, &UWebUIHostWidget::HandleToggleDebugClicked);
-		ToggleDebugButton->OnClicked.AddDynamic(this, &UWebUIHostWidget::HandleToggleDebugClicked);
-	}
-
-	bDebugPanelVisible = bShowDebugPanelOnStart;
-	SetDebugPanelVisible(bDebugPanelVisible);
-
-	AddLog(TEXT("Host"), TEXT("Host widget initialized."));
-
 	ApplyStartupConfig();
-	UpdateStatusText();
+
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Host widget initialized."));
 
 	bInitialized = true;
-}
-
-void UWebUIHostWidget::ReloadBrowser()
-{
-	if (!MainBrowser)
-	{
-		AddLog(TEXT("Warning"), TEXT("ReloadBrowser failed: MainBrowser is null."));
-		return;
-	}
-
-	const FString TargetUrl = !StartupURL.IsEmpty() ? StartupURL : CurrentUrl;
-	if (TargetUrl.IsEmpty())
-	{
-		AddLog(TEXT("Warning"), TEXT("ReloadBrowser failed: no URL available."));
-		return;
-	}
-
-	AddLog(TEXT("Host"), FString::Printf(TEXT("Reload browser: %s"), *TargetUrl));
-	MainBrowser->LoadURLWithBridge(TargetUrl);
-}
-
-void UWebUIHostWidget::ClearLogs()
-{
-	LogEntries.Empty();
-	RefreshLogText();
-	AddLog(TEXT("Host"), TEXT("Logs cleared."));
-}
-
-void UWebUIHostWidget::SetDebugPanelVisible(bool bVisible)
-{
-	bDebugPanelVisible = bVisible;
-
-	if (DebugPanel)
-	{
-		DebugPanel->SetVisibility(bVisible ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
-	}
-
-	UpdateStatusText();
-}
-
-void UWebUIHostWidget::HandleBrowserEvent(const FString& EventName, const FString& PayloadJson)
-{
-	LastBridgeEvent = EventName;
-
-	AddLog(
-		TEXT("Bridge"),
-		FString::Printf(TEXT("Event=%s Payload=%s"), *EventName, *PayloadJson)
-	);
-
-	if (bAutoHandleBaseEvents && MainBrowser)
-	{
-		if (EventName == TEXT("BridgeReady"))
-		{
-			SendUEReady();
-			SendSceneState();
-		}
-		else if (EventName == TEXT("Ping"))
-		{
-			SendPong();
-		}
-		else if (EventName == TEXT("RequestSceneState"))
-		{
-			SendSceneState();
-		}
-	}
-
-	UpdateStatusText();
-}
-
-void UWebUIHostWidget::HandleBrowserUrlChanged(const FString& Url)
-{
-	CurrentUrl = Url;
-	AddLog(TEXT("Browser"), FString::Printf(TEXT("URL changed: %s"), *Url));
-	UpdateStatusText();
-}
-
-void UWebUIHostWidget::HandleReloadClicked()
-{
-	ReloadBrowser();
-}
-
-void UWebUIHostWidget::HandleClearLogsClicked()
-{
-	ClearLogs();
-}
-
-void UWebUIHostWidget::HandleToggleDebugClicked()
-{
-	SetDebugPanelVisible(!bDebugPanelVisible);
-	AddLog(TEXT("Host"), FString::Printf(TEXT("Debug panel visible: %s"), bDebugPanelVisible ? TEXT("true") : TEXT("false")));
-}
-
-void UWebUIHostWidget::ApplyStartupConfig()
-{
-	if (!MainBrowser)
-	{
-		return;
-	}
-
-	if (!StartupURL.IsEmpty())
-	{
-		MainBrowser->StartupURL = StartupURL;
-	}
-
-	if (bAutoLoadStartupURL && !StartupURL.IsEmpty())
-	{
-		AddLog(TEXT("Host"), FString::Printf(TEXT("Load startup URL: %s"), *StartupURL));
-		MainBrowser->LoadURLWithBridge(StartupURL);
-		CurrentUrl = StartupURL;
-	}
-	else
-	{
-		CurrentUrl = MainBrowser->StartupURL;
-	}
 }
 
 void UWebUIHostWidget::BindBrowserEvents()
@@ -201,74 +104,78 @@ void UWebUIHostWidget::UnbindBrowserEvents()
 
 	MainBrowser->OnBrowserEvent.RemoveDynamic(this, &UWebUIHostWidget::HandleBrowserEvent);
 	MainBrowser->OnPageUrlChanged.RemoveDynamic(this, &UWebUIHostWidget::HandleBrowserUrlChanged);
-
-	if (ReloadButton)
-	{
-		ReloadButton->OnClicked.RemoveDynamic(this, &UWebUIHostWidget::HandleReloadClicked);
-	}
-
-	if (ClearLogsButton)
-	{
-		ClearLogsButton->OnClicked.RemoveDynamic(this, &UWebUIHostWidget::HandleClearLogsClicked);
-	}
-
-	if (ToggleDebugButton)
-	{
-		ToggleDebugButton->OnClicked.RemoveDynamic(this, &UWebUIHostWidget::HandleToggleDebugClicked);
-	}
 }
 
-void UWebUIHostWidget::UpdateStatusText()
+void UWebUIHostWidget::ApplyStartupConfig()
 {
-	if (!StatusText)
+	if (!MainBrowser)
 	{
 		return;
 	}
 
-	const FString Status = FString::Printf(
-		TEXT("URL: %s\nBridgeName: ueBridge\nInteractionMode: %s\nDebugVisible: %s\nLastEvent: %s"),
-		CurrentUrl.IsEmpty() ? TEXT("(empty)") : *CurrentUrl,
-		*GetInteractionModeString(),
-		bDebugPanelVisible ? TEXT("true") : TEXT("false"),
-		*LastBridgeEvent
-	);
+	MainBrowser->BridgeObjectName = BrowserBridgeObjectName;
+	MainBrowser->bSendUEReadyAfterSetup = bBrowserSendUEReadyAfterSetup;
+	MainBrowser->StartupURL = StartupURL;
 
-	StatusText->SetText(FText::FromString(Status));
+	if (bAutoLoadStartupURL && !StartupURL.IsEmpty())
+	{
+		UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Load startup URL: %s"), *StartupURL);
+		MainBrowser->LoadURLWithBridge(StartupURL);
+		CurrentUrl = StartupURL;
+	}
+	else
+	{
+		CurrentUrl = MainBrowser->StartupURL;
+	}
 }
 
-void UWebUIHostWidget::RefreshLogText()
+void UWebUIHostWidget::ReloadBrowser()
 {
-	if (!LogTextBox)
+	if (!MainBrowser)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[WebUIHostWidget] ReloadBrowser failed: MainBrowser is null."));
 		return;
 	}
 
-	FString Combined;
-	for (const FWebUIHostLogEntry& Entry : LogEntries)
+	const FString TargetUrl = !StartupURL.IsEmpty() ? StartupURL : CurrentUrl;
+	if (TargetUrl.IsEmpty())
 	{
-		Combined += FString::Printf(TEXT("[%s] [%s] %s\n"), *Entry.Timestamp, *Entry.Category, *Entry.Message);
+		UE_LOG(LogTemp, Warning, TEXT("[WebUIHostWidget] ReloadBrowser failed: no URL available."));
+		return;
 	}
 
-	LogTextBox->SetText(FText::FromString(Combined));
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Reload browser: %s"), *TargetUrl);
+	MainBrowser->LoadURLWithBridge(TargetUrl);
 }
 
-void UWebUIHostWidget::AddLog(const FString& Category, const FString& Message)
+void UWebUIHostWidget::HandleBrowserEvent(const FString& EventName, const FString& PayloadJson)
 {
-	FWebUIHostLogEntry Entry;
-	Entry.Timestamp = GetNowTimeString();
-	Entry.Category = Category;
-	Entry.Message = Message;
+	LastBridgeEvent = EventName;
 
-	LogEntries.Add(Entry);
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Bridge Event=%s Payload=%s"), *EventName, *PayloadJson);
 
-	while (LogEntries.Num() > MaxLogEntries)
+	if (bAutoHandleBaseEvents && MainBrowser)
 	{
-		LogEntries.RemoveAt(0);
+		if (EventName == TEXT("BridgeReady"))
+		{
+			SendUEReady();
+			SendSceneState();
+		}
+		else if (EventName == TEXT("Ping"))
+		{
+			SendPong();
+		}
+		else if (EventName == TEXT("RequestSceneState"))
+		{
+			SendSceneState();
+		}
 	}
+}
 
-	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget][%s] %s"), *Category, *Message);
-
-	RefreshLogText();
+void UWebUIHostWidget::HandleBrowserUrlChanged(const FString& Url)
+{
+	CurrentUrl = Url;
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] URL changed: %s"), *Url);
 }
 
 void UWebUIHostWidget::SendUEReady()
@@ -280,7 +187,7 @@ void UWebUIHostWidget::SendUEReady()
 
 	const FString Payload = TEXT(R"({"ok":true,"source":"WebUIHostWidget"})");
 	MainBrowser->SendEventToPage(TEXT("UEReady"), Payload);
-	AddLog(TEXT("Host"), FString::Printf(TEXT("Send UEReady: %s"), *Payload));
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Send UEReady: %s"), *Payload);
 }
 
 void UWebUIHostWidget::SendPong()
@@ -292,7 +199,7 @@ void UWebUIHostWidget::SendPong()
 
 	const FString Payload = TEXT(R"({"ok":true,"source":"WebUIHostWidget"})");
 	MainBrowser->SendEventToPage(TEXT("Pong"), Payload);
-	AddLog(TEXT("Host"), FString::Printf(TEXT("Send Pong: %s"), *Payload));
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Send Pong: %s"), *Payload);
 }
 
 void UWebUIHostWidget::SendSceneState()
@@ -304,7 +211,7 @@ void UWebUIHostWidget::SendSceneState()
 
 	const FString Payload = BuildSceneStateJson();
 	MainBrowser->SendEventToPage(TEXT("SceneState"), Payload);
-	AddLog(TEXT("Host"), FString::Printf(TEXT("Send SceneState: %s"), *Payload));
+	UE_LOG(LogTemp, Log, TEXT("[WebUIHostWidget] Send SceneState: %s"), *Payload);
 }
 
 FString UWebUIHostWidget::BuildSceneStateJson() const
@@ -330,9 +237,4 @@ FString UWebUIHostWidget::GetInteractionModeString() const
 	default:
 		return TEXT("Unknown");
 	}
-}
-
-FString UWebUIHostWidget::GetNowTimeString() const
-{
-	return FDateTime::Now().ToString(TEXT("%H:%M:%S"));
 }

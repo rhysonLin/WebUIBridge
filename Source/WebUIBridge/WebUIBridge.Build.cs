@@ -11,6 +11,7 @@ public class WebUIBridge : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"InputCore",
 			"UMG",
 			"Slate",
 			"SlateCore",

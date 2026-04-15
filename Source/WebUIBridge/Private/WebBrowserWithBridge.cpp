@@ -129,3 +129,14 @@ void UWebBrowserWithBridge::BindBridgeDelegates()
 	Bridge->OnBrowserEvent.RemoveDynamic(this, &UWebBrowserWithBridge::HandleBridgeEvent);
 	Bridge->OnBrowserEvent.AddDynamic(this, &UWebBrowserWithBridge::HandleBridgeEvent);
 }
+
+void UWebBrowserWithBridge::SetBrowserSupportsTransparency(bool bEnable)
+{
+	bSupportsTransparency = bEnable;
+	SynchronizeProperties();
+}
+
+bool UWebBrowserWithBridge::GetBrowserSupportsTransparency() const
+{
+	return bSupportsTransparency;
+}
