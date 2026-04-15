@@ -1,6 +1,6 @@
-#include "WebUIBridge.h"
+#include "Bridge/WebUIBridge.h"
 
-#include "WebUIBridgeProtocol.h"
+#include "Bridge/WebUIBridgeProtocol.h"
 
 void UWebUIBridge::SetupBridge(UWebBrowser* InBrowser, const FString& InObjectName)
 {

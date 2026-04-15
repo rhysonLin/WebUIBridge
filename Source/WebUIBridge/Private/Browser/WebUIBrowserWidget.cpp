@@ -1,4 +1,4 @@
-#include "WebUIBrowserWidget.h"
+#include "Browser/WebUIBrowserWidget.h"
 
 UWebUIBrowserWidget::UWebUIBrowserWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

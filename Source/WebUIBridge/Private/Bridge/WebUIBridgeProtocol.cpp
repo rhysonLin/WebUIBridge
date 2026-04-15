@@ -1,4 +1,4 @@
-#include "WebUIBridgeProtocol.h"
+#include "Bridge/WebUIBridgeProtocol.h"
 
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"

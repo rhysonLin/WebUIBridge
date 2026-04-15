@@ -1,4 +1,4 @@
-#include "WebBrowserWithBridge.h"
+#include "Browser/WebBrowserWithBridge.h"
 
 UWebBrowserWithBridge::UWebBrowserWithBridge(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

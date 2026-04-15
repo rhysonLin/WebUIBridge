@@ -5,7 +5,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
-#include "WebUIBridgeProtocol.h"
+#include "Bridge/WebUIBridgeProtocol.h"
 
 namespace
 {

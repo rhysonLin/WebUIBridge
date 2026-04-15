@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "WebBrowser.h"
-#include "WebUIBridge.h"
+#include "Bridge/WebUIBridge.h"
 #include "WebBrowserWithBridge.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FWebBrowserWithBridgeUrlSignature, const FString&, Url);

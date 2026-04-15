@@ -1,9 +1,9 @@
-﻿#include "WebUIHostWidget.h"
+﻿#include "Host/WebUIHostWidget.h"
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
-#include "WebUIBrowserWidget.h"
+#include "Browser/WebUIBrowserWidget.h"
 
 UWebUIHostWidget::UWebUIHostWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
