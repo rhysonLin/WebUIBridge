@@ -6,7 +6,7 @@ public class WebUIBridge : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[]
+		PublicDependencyModuleNames.AddRange(new string[] 
 		{
 			"Core",
 			"CoreUObject",
@@ -15,7 +15,8 @@ public class WebUIBridge : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
-			"WebBrowserWidget"
+			"WebBrowserWidget",
+			"CinematicCamera"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
