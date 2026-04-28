@@ -6,7 +6,7 @@
 
 class APlayerController;
 class ACameraActor;
-class ACineCameraActor;
+class ACesiumGeoreference;
 
 USTRUCT(BlueprintType)
 struct FWebUICameraViewInfo
@@ -35,8 +35,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Camera")
 	void SetTargetPlayerController(APlayerController* InPlayerController);
 
-	UFUNCTION(BlueprintPure, Category = "Web UI|Camera")
-	APlayerController* GetTargetPlayerController() const { return TargetPlayerController.Get(); }
+	UFUNCTION(BlueprintCallable, Category = "Web UI|Camera")
+	void SetGeoreference(ACesiumGeoreference* InGeoreference);
 
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Camera")
 	bool SwitchToCameraActor(AActor* CameraActor, float BlendTime = 0.0f);
@@ -47,20 +47,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Camera")
 	bool ReturnToPlayerView(float BlendTime = 0.0f);
 
+	/** 移动当前受控 Pawn 到 UE 世界坐标，移动后仍可 WASD/EQ */
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Camera")
-	bool FlyToWorldLocation(
+	bool MoveControlledPawnToWorldLocation(
 		const FVector& TargetLocation,
-		const FRotator& TargetRotation,
-		float FOV = 90.0f,
-		float BlendTime = 0.0f
+		const FRotator& TargetRotation
+	);
+
+	/** 经纬度高度飞行：Longitude/Latitude/Height 单位为度/米 */
+	UFUNCTION(BlueprintCallable, Category = "Web UI|Camera")
+	bool MoveControlledPawnToGeoLocation(
+		double Longitude,
+		double Latitude,
+		double Height,
+		const FRotator& TargetRotation
 	);
 
 	UFUNCTION(BlueprintPure, Category = "Web UI|Camera")
 	FWebUICameraViewInfo GetCurrentViewInfo() const;
 
 protected:
-	bool EnsureFlightCamera();
 	void CachePlayerViewTargetIfNeeded();
+	ACesiumGeoreference* ResolveGeoreference() const;
 
 protected:
 	UPROPERTY(Transient)
@@ -70,5 +78,5 @@ protected:
 	TObjectPtr<AActor> CachedPlayerViewTarget = nullptr;
 
 	UPROPERTY(Transient)
-	TObjectPtr<ACameraActor> RuntimeFlightCamera = nullptr;
+	TObjectPtr<ACesiumGeoreference> Georeference = nullptr;
 };

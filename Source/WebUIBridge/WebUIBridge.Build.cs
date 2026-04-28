@@ -16,7 +16,8 @@ public class WebUIBridge : ModuleRules
 			"Slate",
 			"SlateCore",
 			"WebBrowserWidget",
-			"CinematicCamera"
+			"CinematicCamera",
+			"CesiumRuntime"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

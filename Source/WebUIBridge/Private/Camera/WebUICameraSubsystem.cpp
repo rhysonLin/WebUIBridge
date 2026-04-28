@@ -2,8 +2,9 @@
 
 #include "Camera/CameraActor.h"
 #include "Camera/PlayerCameraManager.h"
-#include "CineCameraActor.h"
+#include "CesiumGeoreference.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -13,14 +14,14 @@ void UWebUICameraSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	TargetPlayerController = nullptr;
 	CachedPlayerViewTarget = nullptr;
-	RuntimeFlightCamera = nullptr;
+	Georeference = nullptr;
 }
 
 void UWebUICameraSubsystem::Deinitialize()
 {
 	TargetPlayerController = nullptr;
 	CachedPlayerViewTarget = nullptr;
-	RuntimeFlightCamera = nullptr;
+	Georeference = nullptr;
 
 	Super::Deinitialize();
 }
@@ -29,28 +30,24 @@ void UWebUICameraSubsystem::SetTargetPlayerController(APlayerController* InPlaye
 {
 	TargetPlayerController = InPlayerController;
 
-	if (TargetPlayerController)
-	{
-		UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] Target PlayerController set: %s"), *GetNameSafe(TargetPlayerController));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] Target PlayerController cleared."));
-	}
+	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] Target PlayerController set: %s"),
+		*GetNameSafe(TargetPlayerController.Get()));
+}
+
+void UWebUICameraSubsystem::SetGeoreference(ACesiumGeoreference* InGeoreference)
+{
+	Georeference = InGeoreference;
+
+	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] Georeference set: %s"),
+		*GetNameSafe(Georeference.Get()));
 }
 
 bool UWebUICameraSubsystem::SwitchToCameraActor(AActor* CameraActor, float BlendTime)
 {
 	APlayerController* PC = TargetPlayerController.Get();
-	if (!PC)
+	if (!PC || !CameraActor)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] SwitchToCameraActor failed: TargetPlayerController is null."));
-		return false;
-	}
-
-	if (!CameraActor)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] SwitchToCameraActor failed: CameraActor is null."));
+		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] SwitchToCameraActor failed."));
 		return false;
 	}
 
@@ -58,16 +55,17 @@ bool UWebUICameraSubsystem::SwitchToCameraActor(AActor* CameraActor, float Blend
 
 	PC->SetViewTargetWithBlend(CameraActor, BlendTime);
 
-	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] Switched to camera actor: %s"), *GetNameSafe(CameraActor));
+	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] SwitchToCameraActor: %s"),
+		*GetNameSafe(CameraActor));
+
 	return true;
 }
 
 bool UWebUICameraSubsystem::SwitchToCameraByTag(FName CameraTag, float BlendTime)
 {
 	APlayerController* PC = TargetPlayerController.Get();
-	if (!PC)
+	if (!PC || !PC->GetWorld())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] SwitchToCameraByTag failed: TargetPlayerController is null."));
 		return false;
 	}
 
@@ -76,7 +74,7 @@ bool UWebUICameraSubsystem::SwitchToCameraByTag(FName CameraTag, float BlendTime
 
 	if (FoundActors.Num() <= 0 || !FoundActors[0])
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] No actor found with tag: %s"), *CameraTag.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] No camera found with tag: %s"), *CameraTag.ToString());
 		return false;
 	}
 
@@ -88,70 +86,97 @@ bool UWebUICameraSubsystem::ReturnToPlayerView(float BlendTime)
 	APlayerController* PC = TargetPlayerController.Get();
 	if (!PC)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] ReturnToPlayerView failed: TargetPlayerController is null."));
 		return false;
 	}
 
-	AActor* TargetView = CachedPlayerViewTarget.Get();
-	if (!TargetView)
+	AActor* Target = CachedPlayerViewTarget.Get();
+	if (!Target)
 	{
-		TargetView = PC->GetPawn();
+		Target = PC->GetPawn();
 	}
 
-	if (!TargetView)
+	if (!Target)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] ReturnToPlayerView failed: no cached player view target and no pawn."));
+		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] ReturnToPlayerView failed: no target."));
 		return false;
 	}
 
-	PC->SetViewTargetWithBlend(TargetView, BlendTime);
+	PC->SetViewTargetWithBlend(Target, BlendTime);
 
-	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] Returned to player view: %s"), *GetNameSafe(TargetView));
+	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] ReturnToPlayerView: %s"), *GetNameSafe(Target));
 	return true;
 }
 
-bool UWebUICameraSubsystem::FlyToWorldLocation(
+bool UWebUICameraSubsystem::MoveControlledPawnToWorldLocation(
 	const FVector& TargetLocation,
-	const FRotator& TargetRotation,
-	float FOV,
-	float BlendTime
+	const FRotator& TargetRotation
 )
 {
 	APlayerController* PC = TargetPlayerController.Get();
 	if (!PC)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] FlyToWorldLocation failed: TargetPlayerController is null."));
+		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] MoveControlledPawnToWorldLocation failed: PC is null."));
 		return false;
 	}
 
-	if (!EnsureFlightCamera())
+	APawn* Pawn = PC->GetPawn();
+	if (!Pawn)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] FlyToWorldLocation failed: RuntimeFlightCamera not available."));
+		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] MoveControlledPawnToWorldLocation failed: Pawn is null."));
 		return false;
 	}
 
-	CachePlayerViewTargetIfNeeded();
-
-	RuntimeFlightCamera->SetActorLocation(TargetLocation);
-	RuntimeFlightCamera->SetActorRotation(TargetRotation);
-
-	if (PC->PlayerCameraManager)
+	// 如果当前正在看 CameraActor，先切回 Pawn，否则你移动 Pawn 也看不到。
+	if (PC->GetViewTarget() != Pawn)
 	{
-		PC->PlayerCameraManager->SetFOV(FOV);
+		PC->SetViewTargetWithBlend(Pawn, 0.0f);
 	}
 
-	PC->SetViewTargetWithBlend(RuntimeFlightCamera, BlendTime);
+	Pawn->SetActorLocation(TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
 
-	UE_LOG(
-		LogTemp,
-		Log,
-		TEXT("[WebUICameraSubsystem] FlyToWorldLocation -> Location=%s Rotation=%s FOV=%.2f"),
+	// 控制器朝向决定相机视角。
+	PC->SetControlRotation(TargetRotation);
+
+	// Pawn 自身只同步 Yaw，避免 Pitch/Roll 把 Pawn 转歪。
+	Pawn->SetActorRotation(FRotator(0.f, TargetRotation.Yaw, 0.f));
+
+	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] Move Pawn To World: Location=%s Rotation=%s Pawn=%s"),
 		*TargetLocation.ToString(),
 		*TargetRotation.ToString(),
-		FOV
-	);
+		*GetNameSafe(Pawn));
 
 	return true;
+}
+
+bool UWebUICameraSubsystem::MoveControlledPawnToGeoLocation(
+	double Longitude,
+	double Latitude,
+	double Height,
+	const FRotator& TargetRotation
+)
+{
+	ACesiumGeoreference* Geo = ResolveGeoreference();
+	if (!Geo)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[WebUICameraSubsystem] MoveControlledPawnToGeoLocation failed: no CesiumGeoreference."));
+		return false;
+	}
+
+	const FVector LongitudeLatitudeHeight(
+		static_cast<float>(Longitude),
+		static_cast<float>(Latitude),
+		static_cast<float>(Height)
+	);
+
+	const FVector UnrealLocation = Geo->TransformLongitudeLatitudeHeightPositionToUnreal(LongitudeLatitudeHeight);
+
+	UE_LOG(LogTemp, Log, TEXT("[WebUICameraSubsystem] GeoToWorld: Lon=%.8f Lat=%.8f Height=%.2f -> %s"),
+		Longitude,
+		Latitude,
+		Height,
+		*UnrealLocation.ToString());
+
+	return MoveControlledPawnToWorldLocation(UnrealLocation, TargetRotation);
 }
 
 FWebUICameraViewInfo UWebUICameraSubsystem::GetCurrentViewInfo() const
@@ -171,38 +196,6 @@ FWebUICameraViewInfo UWebUICameraSubsystem::GetCurrentViewInfo() const
 	return Result;
 }
 
-bool UWebUICameraSubsystem::EnsureFlightCamera()
-{
-	if (RuntimeFlightCamera)
-	{
-		return true;
-	}
-
-	APlayerController* PC = TargetPlayerController.Get();
-	if (!PC || !PC->GetWorld())
-	{
-		return false;
-	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.Name = TEXT("WebUIRuntimeFlightCamera");
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	RuntimeFlightCamera = PC->GetWorld()->SpawnActor<ACameraActor>(
-		ACameraActor::StaticClass(),
-		FVector::ZeroVector,
-		FRotator::ZeroRotator,
-		SpawnParams
-	);
-
-	if (RuntimeFlightCamera)
-	{
-		RuntimeFlightCamera->SetActorHiddenInGame(true);
-	}
-
-	return RuntimeFlightCamera != nullptr;
-}
-
 void UWebUICameraSubsystem::CachePlayerViewTargetIfNeeded()
 {
 	APlayerController* PC = TargetPlayerController.Get();
@@ -211,14 +204,33 @@ void UWebUICameraSubsystem::CachePlayerViewTargetIfNeeded()
 		return;
 	}
 
-	AActor* CurrentViewTarget = PC->GetViewTarget();
-	if (!CurrentViewTarget)
+	AActor* Current = PC->GetViewTarget();
+	if (Current)
 	{
-		return;
+		CachedPlayerViewTarget = Current;
+	}
+}
+
+ACesiumGeoreference* UWebUICameraSubsystem::ResolveGeoreference() const
+{
+	if (Georeference)
+	{
+		return Georeference.Get();
 	}
 
-	if (CurrentViewTarget != RuntimeFlightCamera)
+	APlayerController* PC = TargetPlayerController.Get();
+	if (!PC || !PC->GetWorld())
 	{
-		CachedPlayerViewTarget = CurrentViewTarget;
+		return nullptr;
 	}
+
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(PC->GetWorld(), ACesiumGeoreference::StaticClass(), FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		return Cast<ACesiumGeoreference>(FoundActors[0]);
+	}
+
+	return nullptr;
 }
