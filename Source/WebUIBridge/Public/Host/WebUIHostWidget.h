@@ -69,6 +69,10 @@ protected:
 	void SendPong();
 	void SendSceneState();
 
+	void HandleMoveToWorld(const FString& PayloadJson);
+	void HandleMoveToGeo(const FString& PayloadJson);
+	void SendCameraMoveResult(const FString& EventName, bool bOk, const FString& ErrorMessage);
+
 	FString BuildSceneStateJson() const;
 	FString GetInteractionModeString() const;
 
