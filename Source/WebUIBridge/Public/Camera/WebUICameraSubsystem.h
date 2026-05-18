@@ -2,11 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "TimerManager.h"
 #include "WebUICameraSubsystem.generated.h"
 
 class APlayerController;
 class ACameraActor;
 class ACesiumGeoreference;
+class APawn;
 
 USTRUCT(BlueprintType)
 struct FWebUICameraViewInfo
@@ -70,6 +72,17 @@ protected:
 	void CachePlayerViewTargetIfNeeded();
 	ACesiumGeoreference* ResolveGeoreference() const;
 
+	bool StartSmoothPawnMove(
+		APawn* Pawn,
+		const FVector& TargetLocation,
+		const FRotator& TargetRotation
+	);
+
+	void TickSmoothPawnMove();
+	void FinishSmoothPawnMove(bool bApplyTarget);
+	void CancelSmoothFlight();
+	float GetSmoothFlightAlpha() const;
+
 protected:
 	UPROPERTY(Transient)
 	TObjectPtr<APlayerController> TargetPlayerController = nullptr;
@@ -79,4 +92,18 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<ACesiumGeoreference> Georeference = nullptr;
+
+	FTimerHandle SmoothFlyTimerHandle;
+
+	UPROPERTY(Transient)
+	TObjectPtr<APawn> SmoothFlyPawn = nullptr;
+
+	FVector SmoothFlyStartLocation = FVector::ZeroVector;
+	FVector SmoothFlyTargetLocation = FVector::ZeroVector;
+
+	FRotator SmoothFlyStartRotation = FRotator::ZeroRotator;
+	FRotator SmoothFlyTargetRotation = FRotator::ZeroRotator;
+
+	float SmoothFlyStartWorldTime = 0.0f;
+	float SmoothFlyDuration = 2.0f;
 };

@@ -7,7 +7,7 @@ void UWebUIBridge::SetupBridge(UWebBrowser* InBrowser, const FString& InObjectNa
 	BindBrowser(InBrowser, InObjectName);
 	InstallBridgeScript();
 }
-
+//绑定ue的UWebBrowser
 void UWebUIBridge::BindBrowser(UWebBrowser* InBrowser, const FString& InObjectName)
 {
 	if (BoundBrowser == InBrowser &&
@@ -24,8 +24,9 @@ void UWebUIBridge::BindBrowser(UWebBrowser* InBrowser, const FString& InObjectNa
 	{
 		return;
 	}
-
+	//监听网页 console.log，接收前端发来的消息
 	BoundBrowser->OnConsoleMessage.AddDynamic(this, &UWebUIBridge::HandleConsoleMessage);
+	//网页换地址后，重新注入桥接脚本
 	BoundBrowser->OnUrlChanged.AddDynamic(this, &UWebUIBridge::HandleUrlChanged);
 }
 
