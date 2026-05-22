@@ -19,10 +19,16 @@ AWebUIMarkerActor::AWebUIMarkerActor()
 	MarkerWidgetComponent->SetWidgetSpace(EWidgetSpace::World);
 	MarkerWidgetComponent->SetWidgetClass(UWebUIMarkerWidget::StaticClass());
 	MarkerWidgetComponent->SetDrawSize(FVector2D(360.0f, 96.0f));
-	MarkerWidgetComponent->SetDrawAtDesiredSize(true);
+	MarkerWidgetComponent->SetDrawAtDesiredSize(false);
 	MarkerWidgetComponent->SetTwoSided(true);
 	MarkerWidgetComponent->SetPivot(FVector2D(0.5f, 0.5f));
 	MarkerWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// 关键：不开透明混合，半透明背景容易变成纯黑块。
+	MarkerWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+
+	// 关键：WidgetComponent 的世界缩放不能太大。
+	MarkerWidgetComponent->SetWorldScale3D(FVector(0.2f));
 
 	ClickComponent = CreateDefaultSubobject<USphereComponent>(TEXT("ClickComponent"));
 	ClickComponent->SetupAttachment(Root);
@@ -65,14 +71,12 @@ void AWebUIMarkerActor::InitMarker(const FWebUIMarkerData& InData)
 void AWebUIMarkerActor::SetLabelText(const FText& InText)
 {
 	MarkerData.LabelText = InText;
-
 	UpdateVisual();
 }
 
 void AWebUIMarkerActor::SetMarkerStyle(const FWebUIMarkerStyle& InStyle)
 {
 	MarkerData.Style = InStyle;
-
 	UpdateVisual();
 }
 
@@ -107,13 +111,26 @@ void AWebUIMarkerActor::UpdateVisual()
 			WidgetClass = UWebUIMarkerWidget::StaticClass();
 		}
 
+		const FVector2D SafeDrawSize(
+			FMath::Max(Style.WidgetDrawSize.X, 64.0f),
+			FMath::Max(Style.WidgetDrawSize.Y, 32.0f)
+		);
+
+		const float SafeWorldScale = FMath::Clamp(
+			Style.WidgetWorldScale,
+			0.02f,
+			2.0f
+		);
+
 		MarkerWidgetComponent->SetWidgetClass(WidgetClass);
-		MarkerWidgetComponent->SetDrawSize(Style.WidgetDrawSize);
+		MarkerWidgetComponent->SetDrawSize(SafeDrawSize);
 		MarkerWidgetComponent->SetDrawAtDesiredSize(Style.bDrawAtDesiredSize);
 		MarkerWidgetComponent->SetTwoSided(Style.bTwoSided);
 		MarkerWidgetComponent->SetRelativeLocation(FVector(0.0f, 0.0f, Style.TextHeightOffset));
-		MarkerWidgetComponent->SetWorldScale3D(FVector(FMath::Max(Style.WidgetWorldScale, 0.01f)));
+		MarkerWidgetComponent->SetWorldScale3D(FVector(SafeWorldScale));
 		MarkerWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MarkerWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+		MarkerWidgetComponent->SetPivot(FVector2D(0.5f, 0.5f));
 
 		MarkerWidgetComponent->InitWidget();
 
