@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
@@ -34,6 +34,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Input")
 	void EnterGameMode();
 
+	/**
+	 * 自动路由下的场景模式。
+	 * 使用真正的 GameOnly；Browser 在 Scene 模式退出 Slate 命中链。
+	 * EngineJS 把 data-engine-ui 矩形同步给 UE，全局 InputProcessor 负责自动切回 UI。
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Web UI|Input")
+	void EnterAutomaticSceneMode();
+
 	UFUNCTION(BlueprintCallable, Category = "Web UI|Input")
 	void ToggleInputMode();
 
@@ -55,6 +63,7 @@ public:
 protected:
 	void ApplyUIMode(APlayerController* PC);
 	void ApplyGameMode(APlayerController* PC);
+	void ApplyAutomaticSceneMode(APlayerController* PC);
 	void ShowModeMessage(const FString& Message, const FColor& Color) const;
 
 protected:
